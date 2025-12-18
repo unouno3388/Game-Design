@@ -1,7 +1,7 @@
 
 -----
 
-# Logic Pusher 3D - 技術規格書 (SDD)
+# Logic Pusher 3D - SDD
 
 **Technical Design Document**
 
