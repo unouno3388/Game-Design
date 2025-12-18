@@ -1,0 +1,102 @@
+# Logic Pusher 3D - User Stories
+**版本**: v1.4
+**對應文件**: SDD v1.4 (完整邏輯定義版)
+**日期**: 2025-12
+
+---
+
+## Epic 1: 核心移動與互動 (Core Movement & Interaction)
+
+### 1.1 網格移動控制
+> **需求描述**：
+> 玩家可以使用鍵盤 (WASD 或方向鍵) 控制角色在網格上移動，每次移動一格，以便在關卡中導航並接近目標元件。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 輸入系統需使用 Unity Input System Package。
+    - [ ] 移動必須是離散的 (Grid-based)，一次移動一格 (`GameConstants.CELL_SIZE`)。
+    - [ ] 移動過程需有平滑動畫 (`MOVE_DURATION = 0.3s`)，非瞬間傳送。
+    - [ ] 若目標格子是牆壁 (`Obstacle`) 或邊界外，玩家無法移動。
+
+### 1.2 推動邏輯方塊
+> **需求描述**：
+> 當玩家移動方向上有邏輯閘或電線方塊時，若該方塊後方有空間，玩家可以將其推動一格，藉此改變電路佈局。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 當玩家移動方向上有 `Block` Layer 物件且該物件後方為空地時，推動成功。
+    - [ ] 玩家與方塊需同步移動，並有微小的推動延遲感 (`PUSH_DELAY`)。
+    - [ ] 移動結束後，必須觸發 `OnPositionChanged` 事件通知邏輯層。
+
+---
+
+## Epic 2: 電路邏輯與運算 (Circuit Logic & Computation)
+
+### 2.1 方向性邏輯閘運作
+> **需求描述**：
+> 邏輯閘 (AND/OR/NOT) 必須具備方向性，玩家需依據元件的「輸入面」與「輸出面」來擺放方塊，才能正確導通電路。
+
+* **Acceptance Criteria (AC):**
+    - [ ] **AND Gate**: 只有當「後方」與「側面」輸入皆為 High 時，前方輸出 High。
+    - [ ] **OR Gate**: 只要「非前方」任一輸入為 High，前方輸出 High。
+    - [ ] **NOT Gate**: 當「後方」輸入為 Low 時，前方輸出 High。
+    - [ ] 邏輯運算必須依據 SDD 定義的 `GridDirection` 進行判定。
+
+### 2.2 電路即時傳播
+> **需求描述**：
+> 當玩家完成推動或移動並停止時，遊戲需立即重新計算電路狀態，讓玩家即時看到操作結果（通電或斷電）。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 移動結束觸發 `ICircuitSystem.Recalculate()`。
+    - [ ] 系統需遍歷網格並更新所有方塊的 `SignalState`。
+    - [ ] **Loop Protection**: 若玩家排出了無限迴圈 (例如 NOT Gate 頭接尾)，系統需有 Visited Set 機制防止 StackOverflow 當機。
+
+### 2.3 勝利條件判定
+> **需求描述**：
+> 玩家的最終目標是將電源訊號成功傳導至 `Target` (終點) 方塊；一旦終點通電，即視為過關。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 當 `Target` 方塊接收到 High 訊號時，觸發 `LevelWin` 事件。
+    - [ ] 播放勝利音效 (`SFX_WIN`) 與特效。
+
+---
+
+## Epic 3: 視覺與回饋 (Visuals & Feedback)
+
+### 3.1 通電發光特效 (Bloom)
+> **需求描述**：
+> 玩家需透過視覺特效（如光暈 Bloom）清楚分辨場景中哪些電線或邏輯閘目前處於「通電」狀態，以便直觀地進行除錯。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 通電 (High) 時，材質 Emission 強度設為 `BLOOM_INTENSITY_ON` (2.5)。
+    - [ ] 斷電 (Low) 時，材質 Emission 強度設為 `BLOOM_INTENSITY_OFF` (0.0)。
+    - [ ] 使用 `MaterialPropertyBlock` 實作，確保效能 (SRP Batcher 支援)。
+    - [ ] 配合 URP Volume 的 Bloom 效果，產生光暈。
+
+### 3.2 邏輯閘視覺識別
+> **需求描述**：
+> 每個邏輯方塊的外觀模型需具備獨特特徵，讓玩家能直接識別它是哪種閘 (AND/OR/NOT) 以及它的朝向，無需依賴文字說明。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 模型需有明顯的方向性特徵 (例如箭頭或插座口)。
+    - [ ] `Source` (電源) 必須保持恆亮。
+
+---
+
+## Epic 4: 系統架構與開發 (Architecture & Tech - For Developer)
+
+### 4.1 資料驅動關卡載入
+> **需求描述**：
+> 關卡設計師需能透過 JSON 設定檔來編輯地圖配置與每個邏輯閘的初始方向，無需透過程式碼即可新增或修改關卡。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 實作 JSON Parser 讀取 `layout` 與 `orientations` 陣列。
+    - [ ] `orientations` 數值需正確對應 `GridDirection` Enum。
+    - [ ] 載入時動態生成對應的 Prefab 並設定初始狀態。
+
+### 4.2 MVC 架構解耦實作
+> **需求描述**：
+> 開發者需確保核心邏輯層 (Core) 與 Unity 視覺層 (View) 分離，以便針對複雜的電路邏輯進行獨立的單元測試。
+
+* **Acceptance Criteria (AC):**
+    - [ ] 核心邏輯類別 (Grid, Circuit) 不繼承 `MonoBehaviour`。
+    - [ ] 透過 C# Action/Event 機制通知 View 層更新。
+    - [ ] 編寫 EditMode Test 驗證 AND/OR/NOT 策略邏輯正確。
